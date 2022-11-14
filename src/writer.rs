@@ -1,6 +1,10 @@
 use crate::error::{Error, Result};
 use serde::Serialize;
-use std::io;
+use std::{
+    fs::File,
+    io::{self, BufWriter},
+    path::Path,
+};
 
 #[derive(Debug)]
 pub struct WriterBuilder {
@@ -26,6 +30,32 @@ impl WriterBuilder {
     pub fn from_writer<W: io::Write>(&self, wtr: W) -> Writer<W> {
         Writer::new(self, wtr)
     }
+
+    /// Build a JSON writer from this configuration that writes data to the
+    /// given file path. The file is truncated if it already exists.
+    ///
+    /// If there was a problem opening the file at the given path, then this
+    /// returns the corresponding error.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use std::error::Error;
+    /// use json_arrays::WriterBuilder;
+    ///
+    /// # fn main() { example().unwrap(); }
+    /// fn example() -> Result<(), Box<dyn Error>> {
+    ///     let mut wtr = WriterBuilder::new().from_path("foo.csv")?;
+    ///     wtr.serialize("a")?;
+    ///     wtr.serialize("x")?;
+    ///     wtr.flush()?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn from_path<P: AsRef<Path>>(&self, path: P) -> Result<Writer<BufWriter<File>>> {
+        Ok(Writer::new(self, BufWriter::new(File::create(path)?)))
+    }
+
     /// Whether to write in json lines format.
     ///
     /// This is disabled by default.
@@ -35,7 +65,7 @@ impl WriterBuilder {
     /// ```
     /// use std::error::Error;
     ///
-    /// use json_arrays::writer::WriterBuilder;
+    /// use json_arrays::WriterBuilder;
     /// use serde::Serialize;
     ///
     /// #[derive(Serialize)]
@@ -110,6 +140,33 @@ impl<W: io::Write> Drop for Writer<W> {
         if self.wtr.is_some() && !self.state.panicked {
             let _ = self.close();
         }
+    }
+}
+
+impl Writer<File> {
+    /// Build a JSON writer with a default configuration that writes data to the
+    /// given file path. The file is truncated if it already exists.
+    ///
+    /// If there was a problem opening the file at the given path, then this
+    /// returns the corresponding error.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use std::error::Error;
+    /// use json_arrays::Writer;
+    ///
+    /// # fn main() { example().unwrap(); }
+    /// fn example() -> Result<(), Box<dyn Error>> {
+    ///     let mut wtr = Writer::from_path("foo.csv")?;
+    ///     wtr.serialize("a")?;
+    ///     wtr.serialize("x")?;
+    ///     wtr.close()?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Writer<BufWriter<File>>> {
+        WriterBuilder::new().from_path(path)
     }
 }
 
