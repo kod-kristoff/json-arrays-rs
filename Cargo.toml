@@ -1,0 +1,13 @@
+[package]
+name = "json-arrays"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = "1.0.147"
+serde_json = "1.0.87"
+
+[dev-dependencies]
+serde = { version = "1.0.147", features = ["derive"] }
