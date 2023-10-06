@@ -20,7 +20,7 @@ impl Default for WriterBuilder {
 }
 
 impl WriterBuilder {
-    /// Create a new builder for configuring CSV writing.
+    /// Create a new builder for configuring JSON writing.
     ///
     /// To convert a builder into a writer, call one of the methods starting
     /// with `from_`.
@@ -96,7 +96,7 @@ impl WriterBuilder {
     ///
     ///     let data = String::from_utf8(wtr.into_inner()?)?;
     ///     assert_eq!(data, "\
-    /// {\"city\":\"Boston\",\"country\":\"United States\",\"popcount\":4628910}\
+    /// {\"city\":\"Boston\",\"country\":\"United States\",\"popcount\":4628910}\n\
     /// {\"city\":\"Concord\",\"country\":\"United States\",\"popcount\":42695}\
     /// ");
     ///     Ok(())
@@ -118,6 +118,7 @@ struct WriterState {
     array_start: ArrayState,
     array_end: ArrayState,
     delimiter: DelimiterState,
+    delimiter_token: [u8; 1],
     panicked: bool,
 }
 
@@ -132,7 +133,6 @@ enum ArrayState {
 enum DelimiterState {
     Write,
     WriteNext,
-    None,
 }
 
 impl<W: io::Write> Drop for Writer<W> {
@@ -158,7 +158,7 @@ impl Writer<File> {
     ///
     /// # fn main() { example().unwrap(); }
     /// fn example() -> Result<(), Box<dyn Error>> {
-    ///     let mut wtr = Writer::from_path("foo.csv")?;
+    ///     let mut wtr = Writer::from_path("foo.json")?;
     ///     wtr.serialize("a")?;
     ///     wtr.serialize("x")?;
     ///     wtr.close()?;
@@ -177,17 +177,19 @@ impl<W: io::Write> Writer<W> {
         } else {
             ArrayState::Write
         };
-        let delimiter_state = if builder.is_json_lines {
-            DelimiterState::None
+
+        let delimiter_token = if builder.is_json_lines {
+            [b'\n']
         } else {
-            DelimiterState::WriteNext
+            [b',']
         };
         Writer {
             wtr: Some(wtr),
             state: WriterState {
                 array_start: array_state,
                 array_end: array_state,
-                delimiter: delimiter_state,
+                delimiter: DelimiterState::WriteNext,
+                delimiter_token,
                 panicked: false,
             },
         }
@@ -199,7 +201,7 @@ impl<W: io::Write> Writer<W> {
     ///
     /// # Example
     ///
-    /// This shows how to serialize normal Rust structs as CSV records. The
+    /// This shows how to serialize normal Rust structs as JSON records. The
     /// fields of the struct are used to write a header row automatically.
     /// (Writing the header row automatically can be disabled by building the
     /// CSV writer with a [`WriterBuilder`](struct.WriterBuilder.html) and
@@ -253,8 +255,8 @@ impl<W: io::Write> Writer<W> {
             }
         }
         match self.state.delimiter {
-            DelimiterState::WriteNext => self.state.delimiter = DelimiterState::Write,
             DelimiterState::Write => self.write_delimiter()?,
+            DelimiterState::WriteNext => self.state.delimiter = DelimiterState::Write,
             _ => {}
         };
         // self.write_terminator()?;
@@ -288,7 +290,11 @@ impl<W: io::Write> Writer<W> {
     }
 
     fn write_delimiter(&mut self) -> Result<()> {
-        self.wtr.as_mut().unwrap().write(b",").unwrap();
+        self.wtr
+            .as_mut()
+            .unwrap()
+            .write(&self.state.delimiter_token)
+            .unwrap();
         Ok(())
     }
     pub fn flush(&mut self) -> io::Result<()> {
@@ -321,7 +327,7 @@ mod tests {
 
     use std::error::Error;
 
-    use crate::writer::Writer;
+    use crate::writer::{Writer, WriterBuilder};
     use serde::Serialize;
 
     #[derive(Serialize)]
@@ -335,7 +341,7 @@ mod tests {
     }
 
     #[test]
-    fn example() -> Result<(), Box<dyn Error>> {
+    fn example_json() -> Result<(), Box<dyn Error>> {
         let mut wtr = Writer::from_writer(vec![]);
         wtr.serialize(Row {
             city: "Boston",
@@ -352,6 +358,28 @@ mod tests {
         assert_eq!(
             data,
             r#"[{"city":"Boston","country":"United States","popcount":4628910},{"city":"Concord","country":"United States","popcount":42695}]"#
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn example_json_lines() -> Result<(), Box<dyn Error>> {
+        let mut wtr = WriterBuilder::new().json_lines(true).from_writer(vec![]);
+        wtr.serialize(Row {
+            city: "Boston",
+            country: "United States",
+            population: 4628910,
+        })?;
+        wtr.serialize(Row {
+            city: "Concord",
+            country: "United States",
+            population: 42695,
+        })?;
+
+        let data = String::from_utf8(wtr.into_inner()?)?;
+        assert_eq!(
+            data,
+            "{\"city\":\"Boston\",\"country\":\"United States\",\"popcount\":4628910}\n{\"city\":\"Concord\",\"country\":\"United States\",\"popcount\":42695}"
         );
         Ok(())
     }
