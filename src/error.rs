@@ -3,11 +3,14 @@ use std::fmt::Display;
 use std::io;
 use std::result;
 
+use struson::reader::ValueType;
+
 pub type Result<T> = result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum Error {
     IoError(io::Error),
+    UnsupportedJsonType(ValueType),
 }
 
 impl Display for Error {
