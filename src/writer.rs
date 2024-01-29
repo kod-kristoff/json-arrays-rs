@@ -12,6 +12,7 @@ pub struct WriterBuilder {
     is_json_lines: bool,
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for WriterBuilder {
     fn default() -> Self {
         WriterBuilder {
@@ -276,24 +277,18 @@ impl<W: io::Write> Writer<W> {
     }
 
     fn write_array_start(&mut self) -> bool {
-        match self.wtr.as_mut().unwrap().write(b"[") {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        self.wtr.as_mut().unwrap().write(b"[").is_ok()
     }
 
     fn write_array_end(&mut self) -> bool {
-        match self.wtr.as_mut().unwrap().write(b"]") {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        self.wtr.as_mut().unwrap().write(b"]").is_ok()
     }
 
     fn write_delimiter(&mut self) -> Result<()> {
         self.wtr
             .as_mut()
             .unwrap()
-            .write(&self.state.delimiter_token)
+            .write_all(&self.state.delimiter_token)
             .unwrap();
         Ok(())
     }
