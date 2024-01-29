@@ -1,3 +1,4 @@
+#[allow(unused_imports)]
 use crate::error::{Error, Result};
 use serde::Serialize;
 use std::{
@@ -257,7 +258,6 @@ impl<W: io::Write> Writer<W> {
         match self.state.delimiter {
             DelimiterState::Write => self.write_delimiter()?,
             DelimiterState::WriteNext => self.state.delimiter = DelimiterState::Write,
-            _ => {}
         };
         // self.write_terminator()?;
         serde_json::to_writer(self.wtr.as_mut().unwrap(), &record).unwrap();
